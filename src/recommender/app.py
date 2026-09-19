@@ -191,29 +191,39 @@ def create_app(database_path: str | Path | None = None, tmdb_client: TMDBClient 
     def search(
         request: Request,
         q: str = Query(min_length=1, max_length=120),
-        media_type: Literal["movie", "tv"] = "movie",
+        media_type: Literal["movie", "tv", "all"] = "all",
     ) -> dict:
         database, tmdb = _context(request)
         query = q.strip()
         if not query:
             raise AppError("query_required", 422, "Enter a title to search.")
-        if tmdb.has_token:
-            try:
-                items = tmdb.search(query, media_type)
-            except TMDBError as error:
-                items = database.search_items(query, media_type)
-                if not items:
-                    raise _app_error(error) from error
+
+        media_types = ("movie", "tv") if media_type == "all" else (media_type,)
+        items: list[Item] = []
+        errors: list[TMDBError] = []
+        for search_type in media_types:
+            if tmdb.has_token:
+                try:
+                    remote_items = tmdb.search(query, search_type)
+                except TMDBError as error:
+                    errors.append(error)
+                    remote_items = database.search_items(query, search_type)
+                else:
+                    database.upsert_items(remote_items)
+                items.extend(remote_items)
             else:
-                database.upsert_items(items)
-        else:
-            items = database.search_items(query, media_type)
-            if not items:
-                raise AppError(
-                    "tmdb_token_missing",
-                    503,
-                    "Set TMDB_API_READ_ACCESS_TOKEN to search titles not already cached.",
-                )
+                items.extend(database.search_items(query, search_type))
+
+        unique_items = {item.key: item for item in items}
+        items = sorted(unique_items.values(), key=lambda item: (-item.popularity, item.title.casefold()))
+        if not items:
+            if errors:
+                raise _app_error(errors[0]) from errors[0]
+            raise AppError(
+                "tmdb_token_missing",
+                503,
+                "Set TMDB_API_READ_ACCESS_TOKEN to search titles not already cached.",
+            )
         return {"items": [item.to_dict() for item in items[:20]]}
 
     @app.post("/api/profile/seeds")

@@ -88,11 +88,14 @@ function createSearchCard(item) {
   body.className = "poster-card-body";
   body.append(createTitle(item), createMeta(item));
 
+  const isSelected = state.seeds.some((seed) => seed.key === item.key);
   const button = document.createElement("button");
   button.className = "item-action";
+  if (isSelected) button.classList.add("is-added");
   button.type = "button";
-  button.textContent = state.seeds.some((seed) => seed.key === item.key) ? "Added to taste set" : "Add to taste set";
-  button.disabled = state.seeds.some((seed) => seed.key === item.key) || state.seeds.length >= 10;
+  button.textContent = isSelected ? "Added to taste set" : "Add to taste set";
+  button.disabled = isSelected || state.seeds.length >= 10;
+  button.setAttribute("aria-pressed", String(isSelected));
   button.addEventListener("click", () => addSeed(item));
   body.append(button);
   card.append(body);
@@ -147,6 +150,7 @@ function addSeed(item) {
   if (state.seeds.length >= 10 || state.seeds.some((seed) => seed.key === item.key)) return;
   state.seeds.push(item);
   renderSeeds();
+  renderSearchResults(state.searchResults);
   setStatus(`${item.title} added to your taste set.`);
 }
 

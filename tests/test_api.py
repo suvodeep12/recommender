@@ -163,6 +163,14 @@ def test_cached_search_works_without_token(tmp_path):
     assert missing.json()["error"]["code"] == "tmdb_token_missing"
 
 
+def test_all_media_search_combines_movie_and_tv_results(tmp_path):
+    with client(tmp_path) as app_client:
+        response = app_client.get("/api/search?q=1&media_type=all")
+
+    assert response.status_code == 200
+    assert {item["media_type"] for item in response.json()["items"]} == {"movie", "tv"}
+
+
 def test_search_falls_back_to_cached_matches_when_tmdb_fails(tmp_path):
     from recommender.db import Database
 

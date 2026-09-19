@@ -415,6 +415,19 @@ h2 {
   color: var(--accent);
 }
 
+.item-action:disabled {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  opacity: 1;
+}
+
+.item-action.is-added {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  color: var(--accent);
+}
+
 .item-action:active {
   transform: translateY(1px) scale(0.98);
 }
