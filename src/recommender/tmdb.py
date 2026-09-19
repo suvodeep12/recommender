@@ -15,6 +15,35 @@ TMDB_API_BASE = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 MEDIA_TYPES = ("movie", "tv")
 
+GENRE_NAMES = {
+    12: "Adventure",
+    14: "Fantasy",
+    16: "Animation",
+    18: "Drama",
+    27: "Horror",
+    28: "Action",
+    35: "Comedy",
+    36: "History",
+    37: "Western",
+    53: "Thriller",
+    80: "Crime",
+    99: "Documentary",
+    878: "Science Fiction",
+    9648: "Mystery",
+    10749: "Romance",
+    10751: "Family",
+    10752: "War",
+    10759: "Action and Adventure",
+    10762: "Kids",
+    10763: "News",
+    10764: "Reality",
+    10765: "Sci-Fi and Fantasy",
+    10766: "Soap",
+    10767: "Talk",
+    10768: "War and Politics",
+    10770: "TV Movie",
+}
+
 
 class TMDBError(RuntimeError):
     def __init__(self, code: str, status_code: int, message: str):
@@ -34,9 +63,7 @@ def _entity_tokens(values: Iterable[Any], prefix: str, limit: int) -> tuple[str,
     seen: set[str] = set()
     for value in list(values)[:limit]:
         if isinstance(value, dict):
-            raw = value.get("id")
-            if raw is None:
-                raw = value.get("name") or value.get("original_name") or value.get("title")
+            raw = value.get("name") or value.get("original_name") or value.get("title") or value.get("id")
         else:
             raw = value
         if raw is None:
@@ -53,6 +80,27 @@ def _keyword_values(payload: dict[str, Any]) -> list[Any]:
     if isinstance(keywords, dict):
         return keywords.get("keywords") or keywords.get("results") or []
     return keywords if isinstance(keywords, list) else []
+
+
+def genre_label(value: Any) -> str:
+    try:
+        return GENRE_NAMES.get(int(value), str(value))
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _genre_tokens(values: Iterable[Any]) -> tuple[str, ...]:
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        raw = value.get("name") or value.get("id") if isinstance(value, dict) else value
+        if raw is None:
+            continue
+        token = f"genre:{_slug(genre_label(raw))}"
+        if token not in seen:
+            seen.add(token)
+            tokens.append(token)
+    return tuple(tokens)
 
 
 def _credit_values(payload: dict[str, Any], key: str, limit: int) -> tuple[str, ...]:
@@ -118,6 +166,34 @@ class Item:
             "vote_average": self.vote_average,
             "vote_count": self.vote_count,
             "popularity": self.popularity,
+            "genres": list(self.genres),
+            "next_episode": self.raw.get("next_episode_to_air"),
+        }
+
+
+@dataclass(frozen=True)
+class Episode:
+    tv_id: int
+    season_number: int
+    episode_number: int
+    name: str
+    overview: str
+    air_date: str
+    runtime: int | None
+    still_path: str | None
+    raw: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "tv_id": self.tv_id,
+            "season_number": self.season_number,
+            "episode_number": self.episode_number,
+            "name": self.name,
+            "overview": self.overview,
+            "air_date": self.air_date,
+            "runtime": self.runtime,
+            "still_path": self.still_path,
+            "still_url": f"{TMDB_IMAGE_BASE}{self.still_path}" if self.still_path else None,
         }
 
 
@@ -136,7 +212,7 @@ def normalize_item(payload: dict[str, Any], media_type: str, hydrated: bool = Fa
         overview=str(payload.get("overview") or ""),
         year=str(release_date)[:4],
         poster_path=payload.get("poster_path"),
-        genres=_entity_tokens(genre_values, "genre", 20),
+        genres=_genre_tokens(list(genre_values)[:20]),
         keywords=_entity_tokens(_keyword_values(payload), "keyword", 30),
         cast=_credit_values(payload, "cast", 12),
         crew=_credit_values(payload, "crew", 12),
@@ -147,6 +223,22 @@ def normalize_item(payload: dict[str, Any], media_type: str, hydrated: bool = Fa
         popularity=float(payload.get("popularity") or 0),
         raw=payload,
         is_hydrated=hydrated,
+    )
+
+
+def normalize_episode(payload: dict[str, Any], tv_id: int) -> Episode:
+    if not payload.get("episode_number"):
+        raise ValueError("TMDB episode is missing an episode number")
+    return Episode(
+        tv_id=tv_id,
+        season_number=int(payload.get("season_number") or 0),
+        episode_number=int(payload["episode_number"]),
+        name=str(payload.get("name") or "Untitled episode"),
+        overview=str(payload.get("overview") or ""),
+        air_date=str(payload.get("air_date") or ""),
+        runtime=int(payload["runtime"]) if payload.get("runtime") else None,
+        still_path=payload.get("still_path"),
+        raw=payload,
     )
 
 
@@ -228,6 +320,14 @@ class TMDBClient:
             {"append_to_response": "credits,keywords"},
         )
         return normalize_item(payload, media_type, hydrated=True)
+
+    def season(self, tv_id: int, season_number: int) -> list[Episode]:
+        payload = self._request(f"tv/{tv_id}/season/{season_number}")
+        return [
+            normalize_episode(item, tv_id)
+            for item in payload.get("episodes", [])
+            if item.get("episode_number")
+        ]
 
 
 def now_iso() -> str:

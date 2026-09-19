@@ -9,6 +9,7 @@ description = "A local movie and TV cross-media recommender"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
+  "python-multipart>=0.0.9,<1",
   "scikit-learn>=1.4,<2",
   "uvicorn[standard]>=0.30,<1",
 ]
