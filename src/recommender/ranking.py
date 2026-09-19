@@ -13,6 +13,8 @@ from .tmdb import Item
 
 
 TOTAL_COMPARISONS = 10
+MIN_SEEDS = 5
+MAX_SEEDS = 10
 
 
 @dataclass(frozen=True)

@@ -4,6 +4,10 @@ const state = {
   searchResults: [],
 };
 
+const DRAFT_SEEDS_KEY = "scene-bridge-draft-seeds";
+const MIN_SEEDS = 5;
+const MAX_SEEDS = 10;
+
 const elements = {
   searchForm: document.querySelector("#search-form"),
   searchResults: document.querySelector("#search-results"),
@@ -41,6 +45,34 @@ async function requestJson(url, options = {}) {
 
 function clearElement(element) {
   while (element.firstChild) element.removeChild(element.firstChild);
+}
+
+function saveDraftSeeds() {
+  try {
+    localStorage.setItem(DRAFT_SEEDS_KEY, JSON.stringify(state.seeds));
+  } catch {
+    // Local storage is an enhancement. The saved SQLite profile remains authoritative after submission.
+  }
+}
+
+function clearDraftSeeds() {
+  try {
+    localStorage.removeItem(DRAFT_SEEDS_KEY);
+  } catch {
+    // Ignore storage restrictions and keep the in-memory state usable.
+  }
+}
+
+function restoreDraftSeeds() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DRAFT_SEEDS_KEY) || "[]");
+    if (!Array.isArray(parsed)) return;
+    state.seeds = parsed
+      .filter((item) => item && ["movie", "tv"].includes(item.media_type) && Number.isInteger(item.tmdb_id) && item.title)
+      .slice(0, 10);
+  } catch {
+    state.seeds = [];
+  }
 }
 
 function createPoster(item, className) {
@@ -94,7 +126,7 @@ function createSearchCard(item) {
   if (isSelected) button.classList.add("is-added");
   button.type = "button";
   button.textContent = isSelected ? "Added to taste set" : "Add to taste set";
-  button.disabled = isSelected || state.seeds.length >= 10;
+  button.disabled = isSelected || state.seeds.length >= MAX_SEEDS;
   button.setAttribute("aria-pressed", String(isSelected));
   button.addEventListener("click", () => addSeed(item));
   body.append(button);
@@ -135,6 +167,7 @@ function renderSeeds() {
       remove.textContent = "×";
       remove.addEventListener("click", () => {
         state.seeds = state.seeds.filter((seed) => seed.key !== item.key);
+        saveDraftSeeds();
         renderSeeds();
         renderSearchResults(state.searchResults);
       });
@@ -143,12 +176,13 @@ function renderSeeds() {
     });
   }
   elements.seedCount.textContent = String(state.seeds.length);
-  elements.startButton.disabled = state.seeds.length !== 10;
+  elements.startButton.disabled = state.seeds.length < MIN_SEEDS || state.seeds.length > MAX_SEEDS;
 }
 
 function addSeed(item) {
-  if (state.seeds.length >= 10 || state.seeds.some((seed) => seed.key === item.key)) return;
+  if (state.seeds.length >= MAX_SEEDS || state.seeds.some((seed) => seed.key === item.key)) return;
   state.seeds.push(item);
+  saveDraftSeeds();
   renderSeeds();
   renderSearchResults(state.searchResults);
   setStatus(`${item.title} added to your taste set.`);
@@ -173,7 +207,7 @@ function createPairCard(item) {
   return card;
 }
 
-function renderPair(pair) {
+function renderPair(pair, shouldScroll = true) {
   state.pair = pair;
   elements.comparisonCount.textContent = String(pair.round);
   elements.pairRound.textContent = `Comparison ${pair.round} of ${pair.total_rounds}`;
@@ -181,7 +215,7 @@ function renderPair(pair) {
   clearElement(elements.pairCards);
   elements.pairCards.append(createPairCard(pair.left), createPairCard(pair.right));
   elements.phaseLabel.textContent = "Make ten preference choices";
-  elements.pairPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (shouldScroll) elements.pairPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function renderComplete() {
@@ -199,6 +233,7 @@ async function beginComparisons() {
       method: "POST",
       body: JSON.stringify({ items: state.seeds.map(({ media_type, tmdb_id }) => ({ media_type, tmdb_id })) }),
     });
+    clearDraftSeeds();
     const pair = await requestJson("/api/profile/pair");
     if (pair.complete) {
       renderComplete();
@@ -289,6 +324,7 @@ async function resetProfile() {
   if (!window.confirm("Reset the local taste profile and comparisons?")) return;
   try {
     await requestJson("/api/profile/reset", { method: "POST" });
+    clearDraftSeeds();
     state.seeds = [];
     state.pair = null;
     elements.pairPanel.hidden = true;
@@ -303,7 +339,43 @@ async function resetProfile() {
   }
 }
 
+async function restoreProfile() {
+  try {
+    const profile = await requestJson("/api/profile");
+    if (profile.has_profile) {
+      state.seeds = profile.items;
+      renderSeeds();
+      if (profile.comparison_count > 0 || profile.complete) {
+        const pair = await requestJson("/api/profile/pair");
+        if (pair.complete) {
+          renderComplete();
+          setStatus("Restored your saved recommendation profile.");
+        } else {
+          renderPair(pair, false);
+          setStatus("Restored your saved comparison round.");
+        }
+      } else {
+        elements.phaseLabel.textContent = "Taste set ready";
+        setStatus("Restored your saved taste set. Start comparisons when you are ready.");
+      }
+      return;
+    }
+
+    restoreDraftSeeds();
+    renderSeeds();
+    if (state.seeds.length) setStatus("Restored your in-progress taste set.");
+  } catch (error) {
+    restoreDraftSeeds();
+    renderSeeds();
+    if (state.seeds.length) {
+      setStatus("Restored your in-progress taste set. Saved profile status is temporarily unavailable.", "error");
+    } else {
+      setStatus(error.message, "error");
+    }
+  }
+}
+
 elements.searchForm.addEventListener("submit", searchCatalog);
 elements.startButton.addEventListener("click", beginComparisons);
 elements.resetButton.addEventListener("click", resetProfile);
-renderSeeds();
+restoreProfile();

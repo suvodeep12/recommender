@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 
 from .db import Database
 from .ranking import (
+    MAX_SEEDS,
+    MIN_SEEDS,
     TOTAL_COMPARISONS,
     choose_pair,
     interleave,
@@ -103,8 +105,8 @@ def _ensure_candidates(database: Database, tmdb: TMDBClient, media_type: str) ->
 
 def _profile(database: Database) -> tuple[list[Item], list[Item], list[Item]]:
     seeds = database.seed_items()
-    if len(seeds) != 10:
-        raise AppError("seeds_required", 409, "Select exactly 10 positive seed items first.")
+    if not MIN_SEEDS <= len(seeds) <= MAX_SEEDS:
+        raise AppError("seeds_required", 409, f"Select {MIN_SEEDS} to {MAX_SEEDS} positive seed items first.")
     positive, negative = database.profile_signal_items()
     return seeds, positive, negative
 
@@ -229,9 +231,13 @@ def create_app(database_path: str | Path | None = None, tmdb_client: TMDBClient 
     @app.post("/api/profile/seeds")
     def set_seeds(payload: SeedRequest, request: Request) -> dict:
         database, tmdb = _context(request)
-        if len(payload.items) != 10:
-            raise AppError("seed_count_invalid", 422, "Select exactly 10 positive seed items.")
-        if len({item.key for item in payload.items}) != 10:
+        if not MIN_SEEDS <= len(payload.items) <= MAX_SEEDS:
+            raise AppError(
+                "seed_count_invalid",
+                422,
+                f"Select between {MIN_SEEDS} and {MAX_SEEDS} positive seed items.",
+            )
+        if len({item.key for item in payload.items}) != len(payload.items):
             raise AppError("duplicate_seed", 422, "Each seed item must be unique.")
 
         selected: list[Item] = []
@@ -258,6 +264,23 @@ def create_app(database_path: str | Path | None = None, tmdb_client: TMDBClient 
             "items": [item.to_dict() for item in selected],
             "comparison_count": 0,
             "total_comparisons": TOTAL_COMPARISONS,
+            "minimum_seeds": MIN_SEEDS,
+            "maximum_seeds": MAX_SEEDS,
+        }
+
+    @app.get("/api/profile")
+    def get_profile(request: Request) -> dict:
+        database, _ = _context(request)
+        seeds = database.seed_items()
+        comparison_count = database.comparison_count()
+        return {
+            "items": [item.to_dict() for item in seeds],
+            "has_profile": MIN_SEEDS <= len(seeds) <= MAX_SEEDS,
+            "comparison_count": comparison_count,
+            "total_comparisons": TOTAL_COMPARISONS,
+            "minimum_seeds": MIN_SEEDS,
+            "maximum_seeds": MAX_SEEDS,
+            "complete": comparison_count >= TOTAL_COMPARISONS,
         }
 
     @app.get("/api/profile/pair")

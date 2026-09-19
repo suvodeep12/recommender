@@ -78,9 +78,17 @@ def test_seed_validation_and_reset_preserve_catalog(tmp_path):
         assert seeded.status_code == 200
         assert seeded.json()["comparison_count"] == 0
 
+        profile = app_client.get("/api/profile")
+        assert profile.status_code == 200
+        assert profile.json()["has_profile"] is True
+        assert len(profile.json()["items"]) == 10
+
         reset = app_client.post("/api/profile/reset")
         assert reset.status_code == 200
         assert reset.json()["cached_item_count"] == 10
+
+        empty_profile = app_client.get("/api/profile")
+        assert empty_profile.json()["has_profile"] is False
 
 
 def test_duplicate_seed_is_rejected(tmp_path):
@@ -90,6 +98,16 @@ def test_duplicate_seed_is_rejected(tmp_path):
         response = app_client.post("/api/profile/seeds", json=payload)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "duplicate_seed"
+
+
+def test_five_seed_profile_is_valid(tmp_path):
+    payload = {"items": seed_payload()["items"][:5]}
+    with client(tmp_path) as app_client:
+        response = app_client.post("/api/profile/seeds", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["minimum_seeds"] == 5
+    assert response.json()["maximum_seeds"] == 10
 
 
 def test_pairwise_round_accepts_only_current_winner_and_recommends(tmp_path):
