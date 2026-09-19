@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from recommender.app import create_app
-from recommender.tmdb import Item
+from recommender.tmdb import Item, TMDBError
 
 
 def make_item(media_type: str, tmdb_id: int, title: str, popularity: float = 10) -> Item:
@@ -48,6 +48,11 @@ class FakeTMDB:
 
     def details(self, media_type: str, tmdb_id: int):
         return self.items[(media_type, tmdb_id)]
+
+
+class FailingSearchTMDB(FakeTMDB):
+    def search(self, query: str, media_type: str):
+        raise TMDBError("tmdb_unavailable", 503, "TMDB could not be reached.")
 
 
 def client(tmp_path: Path) -> TestClient:
@@ -156,3 +161,18 @@ def test_cached_search_works_without_token(tmp_path):
     assert cached.json()["items"][0]["title"] == "Cached Film"
     assert missing.status_code == 503
     assert missing.json()["error"]["code"] == "tmdb_token_missing"
+
+
+def test_search_falls_back_to_cached_matches_when_tmdb_fails(tmp_path):
+    from recommender.db import Database
+
+    database_path = tmp_path / "recommendations.sqlite3"
+    database = Database(database_path)
+    database.init()
+    database.upsert_items([make_item("movie", 1, "Cached Matrix")])
+
+    with TestClient(create_app(database_path, FailingSearchTMDB())) as app_client:
+        response = app_client.get("/api/search?q=Cached&media_type=movie")
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["title"] == "Cached Matrix"

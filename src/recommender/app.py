@@ -201,8 +201,11 @@ def create_app(database_path: str | Path | None = None, tmdb_client: TMDBClient 
             try:
                 items = tmdb.search(query, media_type)
             except TMDBError as error:
-                raise _app_error(error) from error
-            database.upsert_items(items)
+                items = database.search_items(query, media_type)
+                if not items:
+                    raise _app_error(error) from error
+            else:
+                database.upsert_items(items)
         else:
             items = database.search_items(query, media_type)
             if not items:
