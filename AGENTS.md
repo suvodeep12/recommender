@@ -46,3 +46,17 @@ Add tests under `tests/` with `test_*.py` names. Cover normal behavior, invalid 
 ## Commit & Pull Request Guidelines
 
 Use concise Conventional Commits such as `feat: add cross-media ranking` or `fix: reject duplicate seeds`. Pull requests should summarize behavior, list test commands and results, mention any configuration changes, and include screenshots for UI changes. Never include API tokens or local recommendation data.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues for `suvodeep12/recommender`; use the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default labels `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository. Read root `CONTEXT.md` and `docs/adr/` when they exist. See `docs/agents/domain.md`.
