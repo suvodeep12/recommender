@@ -70,7 +70,7 @@ async function requestJson(url, options = {}) {
   }
   const response = await fetch(url, { ...options, headers });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error?.message || "Request failed.");
+  if (!response.ok) throw new Error(payload.error?.message || "The local service returned an error.");
   return payload;
 }
 
@@ -160,11 +160,11 @@ function createSearchCard(item) {
   body.append(createTitle(item), createMeta(item));
 
   const isSelected = state.seeds.some((seed) => seed.key === item.key);
-  const addButton = actionButton(isSelected ? "Added" : "Add", () => addSeed(item));
+  const addButton = actionButton(isSelected ? "Added to taste set" : "Add to taste set", () => addSeed(item));
   if (isSelected) addButton.classList.add("is-added");
   addButton.disabled = isSelected || state.seeds.length >= MAX_SEEDS;
   addButton.setAttribute("aria-pressed", String(isSelected));
-  body.append(addButton, actionButton("Save", () => updateItem(item, { status: "planned", saved: true })));
+  body.append(addButton, actionButton("Save to library", () => updateItem(item, { status: "planned", saved: true })));
   card.append(body);
   return card;
 }
@@ -220,7 +220,7 @@ function addSeed(item) {
   saveDraftSeeds();
   renderSeeds();
   renderSearchResults(state.searchResults);
-  setStatus(`${item.title} added.`);
+  setStatus(`${item.title} added to your taste set.`);
 }
 
 function createPairCard(item) {
@@ -231,7 +231,7 @@ function createPairCard(item) {
   copy.className = "pair-card-copy";
   const heading = document.createElement("div");
   heading.append(createTitle(item), createMeta(item));
-  copy.append(heading, actionButton("Choose", () => submitPair(item.key), "choose-button"));
+  copy.append(heading, actionButton(`Choose ${item.title}`, () => submitPair(item.key), "choose-button"));
   card.append(copy);
   return card;
 }
@@ -245,27 +245,27 @@ function renderPair(pair, shouldScroll = true) {
     : `Comparison ${pair.round} of ${pair.total_rounds}`;
   clearElement(elements.pairCards);
   elements.pairCards.append(createPairCard(pair.left), createPairCard(pair.right));
-  elements.phaseLabel.textContent = "Teaching";
+  elements.phaseLabel.textContent = "Teach the profile";
   if (shouldScroll) elements.pairPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function renderComplete() {
   if (elements.comparisonCount) elements.comparisonCount.textContent = String(TOTAL_COMPARISONS);
-  elements.phaseLabel.textContent = "Learning";
-  elements.pairRound.textContent = "Pass complete";
+  elements.phaseLabel.textContent = "Your profile is learning";
+  elements.pairRound.textContent = "Initial comparison pass complete";
   elements.pairPanel.hidden = false;
   clearElement(elements.pairCards);
   const note = document.createElement("p");
   note.className = "empty-note pair-complete";
-  note.textContent = "Ready.";
-  elements.pairCards.append(note, actionButton("Teach another", loadAdaptivePair, "button button-quiet"));
+  note.textContent = "The comparison pass is complete. Keep using the library to sharpen the next feed.";
+  elements.pairCards.append(note, actionButton("Teach me another pair", loadAdaptivePair, "button button-quiet"));
 }
 
 async function loadAdaptivePair() {
   try {
     const pair = await requestJson("/api/learning/compare");
     renderPair(pair);
-    setStatus("A useful close call.");
+    setStatus("This pair was chosen because your current model is least certain here.");
   } catch (error) {
     setStatus(error.message, "error");
   }
@@ -273,7 +273,7 @@ async function loadAdaptivePair() {
 
 async function beginComparisons() {
   elements.startButton.disabled = true;
-  setStatus("Saving...");
+  setStatus("Saving your taste set...");
   try {
     await requestJson("/api/profile/seeds", {
       method: "POST",
@@ -283,7 +283,7 @@ async function beginComparisons() {
     const pair = await requestJson("/api/profile/pair");
     if (pair.complete) renderComplete();
     else renderPair(pair);
-    setStatus("Choose one.");
+    setStatus("Choose the title you would pick first.");
     await refreshProfileData();
   } catch (error) {
     setStatus(error.message, "error");
@@ -295,7 +295,7 @@ async function submitPair(winnerKey) {
   if (!state.pair) return;
   const buttons = elements.pairCards.querySelectorAll("button");
   buttons.forEach((button) => { button.disabled = true; });
-  setStatus("Updating...");
+  setStatus("Updating your profile...");
   try {
     const next = await requestJson("/api/profile/pair", {
       method: "POST",
@@ -303,7 +303,7 @@ async function submitPair(winnerKey) {
     });
     if (next.complete) renderComplete();
     else renderPair(next);
-    setStatus(next.complete ? "Pass complete." : "Next pair.");
+    setStatus(next.complete ? "Your first learning pass is complete." : "Next comparison loaded.");
     await refreshProfileData();
   } catch (error) {
     setStatus(error.message, "error");
@@ -351,7 +351,7 @@ function renderRecommendations() {
   if (!available.length) {
     const empty = document.createElement("p");
     empty.className = "empty-note";
-    empty.textContent = "Add a title or import history.";
+    empty.textContent = "Add a few titles or import your history to start the feed.";
     elements.recommendations.append(empty);
     return;
   }
@@ -392,12 +392,12 @@ async function loadRecommendations(append = false) {
     clearElement(elements.recommendations);
     const loading = document.createElement("p");
     loading.className = "empty-note";
-    loading.textContent = "Loading...";
+    loading.textContent = "Building the next watch list...";
     elements.recommendations.append(loading);
   }
   try {
     const context = encodeURIComponent(JSON.stringify(sessionContext()));
-    const payload = await requestJson(`/api/recommendations?limit=8&cursor=${cursor}&context=${context}`);
+    const payload = await requestJson(`/api/recommendations?limit=20&cursor=${cursor}&context=${context}`);
     const sections = payload.sections || {};
     Object.entries(sections).forEach(([section, items]) => {
       state.recommendationSections[section] = [...(state.recommendationSections[section] || []), ...items];
@@ -470,7 +470,7 @@ function renderLibrary(items) {
   if (!items.length) {
     const empty = document.createElement("p");
     empty.className = "empty-note";
-    empty.textContent = state.libraryView === "all" ? "Save a title to start." : "Nothing here yet.";
+    empty.textContent = state.libraryView === "all" ? "Your library will appear here after you save or import a title." : "Nothing is in this view yet.";
     elements.libraryGrid.append(empty);
     return;
   }
@@ -493,7 +493,7 @@ async function updateItem(item, changes) {
       method: "PATCH",
       body: JSON.stringify(changes),
     });
-    setStatus(`${item.title} updated.`);
+    setStatus(`${item.title} updated. The next feed will use that signal.`);
     await refreshProfileData();
   } catch (error) {
     setStatus(error.message, "error");
@@ -554,7 +554,7 @@ async function searchCatalog(event) {
   try {
     const payload = await requestJson(`/api/search?q=${encodeURIComponent(query)}&media_type=${encodeURIComponent(mediaType)}`);
     renderSearchResults(payload.items);
-    setStatus(payload.items.length ? "Choose a title." : "No matches.");
+    setStatus(payload.items.length ? "Choose a title to add to your taste set or library." : "No titles matched that search.");
   } catch (error) {
     renderSearchResults([]);
     setStatus(error.message, "error");
@@ -603,18 +603,18 @@ function renderImportMatches(matches) {
 async function previewImport() {
   const file = elements.tvtimeFile.files[0];
   if (!file) {
-    setStatus("Choose a ZIP or CSV first.", "error");
+    setStatus("Choose a TV Time ZIP or CSV first.", "error");
     return;
   }
   elements.previewImport.disabled = true;
-  setStatus("Reading...");
+  setStatus("Reading the export and matching titles...");
   try {
     const form = new FormData();
     form.append("file", file);
     const payload = await requestJson("/api/import/tvtime/preview", { method: "POST", body: form });
     state.importId = payload.import_id;
     renderImportMatches(payload.matches);
-    setStatus(`${payload.summary.records} records.`);
+    setStatus(`${payload.summary.records} records found. Review the queue before adding them.`);
   } catch (error) {
     setStatus(error.message, "error");
   } finally {
@@ -636,7 +636,7 @@ async function commitImport() {
       body: JSON.stringify({ matches }),
     });
     elements.importReview.hidden = true;
-    setStatus(`${payload.summary.accepted} added.`);
+    setStatus(`${payload.summary.accepted} titles added to your local library.`);
     await refreshProfileData();
   } catch (error) {
     setStatus(error.message, "error");
@@ -655,7 +655,7 @@ async function saveTasteNote(event) {
       body: JSON.stringify({ text: input.value.trim(), polarity }),
     });
     input.value = "";
-    setStatus("Signal saved.");
+    setStatus("Personal taste signal saved.");
     await refreshProfileData();
   } catch (error) {
     setStatus(error.message, "error");
@@ -669,7 +669,7 @@ async function toggleLearning() {
       method: "POST",
       body: JSON.stringify({ paused: !profile.learning_paused }),
     });
-    setStatus(profile.learning_paused ? "Learning resumed." : "Learning paused.");
+    setStatus(profile.learning_paused ? "Learning resumed." : "Learning paused. Library changes will still be recorded.");
     await refreshProfileData();
   } catch (error) {
     setStatus(error.message, "error");
@@ -688,7 +688,7 @@ async function resetProfile() {
     elements.pairPanel.hidden = true;
     renderSeeds();
     renderSearchResults([]);
-    setStatus("Reset complete.");
+    setStatus("Your local profile was reset. The catalog cache is still available.");
     await refreshProfileData();
   } catch (error) {
     setStatus(error.message, "error");
@@ -711,13 +711,13 @@ async function restoreProfile() {
     } else {
       restoreDraftSeeds();
       renderSeeds();
-      if (state.seeds.length) setStatus("Draft restored.");
+      if (state.seeds.length) setStatus("Restored your in-progress taste set.");
     }
     await refreshProfileData();
   } catch (error) {
     restoreDraftSeeds();
     renderSeeds();
-    setStatus(state.seeds.length ? "Draft restored." : error.message, "error");
+    setStatus(state.seeds.length ? "Restored your in-progress taste set. Saved profile status is temporarily unavailable." : error.message, "error");
   }
 }
 
@@ -729,7 +729,7 @@ elements.loadMore.addEventListener("click", () => loadRecommendations(true));
 elements.contextForm.addEventListener("submit", (event) => {
   event.preventDefault();
   loadRecommendations();
-  setStatus("Context applied.");
+  setStatus("Session context applied to the next feed.");
 });
 elements.libraryViews.addEventListener("click", (event) => {
   const button = event.target.closest("[data-library-view]");
