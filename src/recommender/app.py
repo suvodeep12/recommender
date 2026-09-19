@@ -67,26 +67,15 @@ def _item_key_set(items: list[Item]) -> set[str]:
     return {item.key for item in items}
 
 
-def _ensure_item_details(database: Database, tmdb: TMDBClient, item: Item) -> Item:
-    if item.is_hydrated or not tmdb.has_token:
-        return item
-    try:
-        detailed = tmdb.details(item.media_type, item.tmdb_id)
-    except TMDBError as error:
-        return item
-    database.upsert_items([detailed])
-    return detailed
-
-
 def _ensure_candidates(database: Database, tmdb: TMDBClient, media_type: str) -> list[Item]:
-    cached = database.items_for_media(media_type, limit=100)
-    if len(cached) < 100 and tmdb.has_token:
+    cached = database.items_for_media(media_type, limit=40)
+    if len(cached) < 40 and tmdb.has_token:
         try:
-            database.upsert_items(tmdb.discover(media_type, pages=5))
+            database.upsert_items(tmdb.discover(media_type, pages=2))
         except TMDBError as error:
             if not cached:
                 raise _app_error(error) from error
-        cached = database.items_for_media(media_type, limit=100)
+        cached = database.items_for_media(media_type, limit=40)
 
     if not cached and not tmdb.has_token:
         raise AppError(
@@ -95,12 +84,7 @@ def _ensure_candidates(database: Database, tmdb: TMDBClient, media_type: str) ->
             "Set TMDB_API_READ_ACCESS_TOKEN or populate the local catalog first.",
         )
 
-    if tmdb.has_token:
-        for item in cached[:50]:
-            if not item.is_hydrated:
-                detailed = _ensure_item_details(database, tmdb, item)
-                cached[cached.index(item)] = detailed
-    return database.items_for_media(media_type, limit=100)
+    return cached
 
 
 def _profile(database: Database) -> tuple[list[Item], list[Item], list[Item]]:
@@ -255,8 +239,8 @@ def create_app(database_path: str | Path | None = None, tmdb_client: TMDBClient 
                 except TMDBError as error:
                     raise _app_error(error) from error
                 database.upsert_items([item])
-            else:
-                item = _ensure_item_details(database, tmdb, item)
+            # Cached search results already contain enough metadata for the first rank pass.
+            # Detail hydration is reserved for uncached selections so starting stays fast.
             selected.append(item)
 
         database.replace_profile(selected)

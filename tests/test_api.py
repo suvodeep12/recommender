@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -58,6 +59,19 @@ class FailingSearchTMDB(FakeTMDB):
 class FailingDetailsTMDB(FakeTMDB):
     def details(self, media_type: str, tmdb_id: int):
         raise TMDBError("tmdb_unavailable", 503, "TMDB could not be reached.")
+
+
+class PartialCandidateTMDB(FakeTMDB):
+    def __init__(self):
+        super().__init__()
+        self.details_calls = 0
+
+    def discover(self, media_type: str, pages: int = 5):
+        return [replace(item, is_hydrated=False) for item in super().discover(media_type, pages)]
+
+    def details(self, media_type: str, tmdb_id: int):
+        self.details_calls += 1
+        return super().details(media_type, tmdb_id)
 
 
 def client(tmp_path: Path) -> TestClient:
@@ -132,6 +146,19 @@ def test_cached_seed_metadata_survives_tmdb_detail_failure(tmp_path):
 
     assert response.status_code == 200
     assert len(response.json()["items"]) == 5
+
+
+def test_first_pair_does_not_bulk_hydrate_candidate_details(tmp_path):
+    fake_tmdb = PartialCandidateTMDB()
+    with TestClient(create_app(tmp_path / "recommendations.sqlite3", fake_tmdb)) as app_client:
+        seeded = app_client.post("/api/profile/seeds", json={"items": seed_payload()["items"][:5]})
+        assert seeded.status_code == 200
+        details_before_pair = fake_tmdb.details_calls
+
+        pair = app_client.get("/api/profile/pair")
+
+    assert pair.status_code == 200
+    assert fake_tmdb.details_calls == details_before_pair
 
 
 def test_pairwise_round_accepts_only_current_winner_and_recommends(tmp_path):
