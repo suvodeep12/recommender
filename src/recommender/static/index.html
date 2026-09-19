@@ -21,7 +21,7 @@
         <a href="#taste-panel">Taste profile</a>
       </nav>
       <div class="topbar-meta">
-        <span id="phase-label">Build your library</span>
+        <span id="phase-label">Start with a signal</span>
         <button id="reset-button" class="button button-quiet" type="button">Reset profile</button>
       </div>
     </header>
@@ -29,9 +29,9 @@
     <main id="workspace" class="workspace">
       <section class="intro" aria-labelledby="intro-title">
         <div>
-          <p class="eyebrow">Personal media index</p>
-          <h1 id="intro-title">Keep your next screen close.</h1>
-          <p class="intro-copy">Record what you have watched. Add a few signals. Let the local profile get sharper with every deliberate choice.</p>
+          <p class="eyebrow">Scene Bridge</p>
+          <h1 id="intro-title">What's next?</h1>
+          <p class="intro-copy">Your taste, in motion.</p>
         </div>
         <div class="process-note" aria-label="Profile status">
           <span><strong id="seed-count">0</strong><small>seeds</small></span>
@@ -45,14 +45,14 @@
       <section id="seed-panel" class="panel seed-panel" aria-labelledby="seed-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Add what you know</p>
-            <h2 id="seed-title">Search a title or bring your history with you.</h2>
+            <p class="eyebrow">Start anywhere</p>
+            <h2 id="seed-title">Give it a signal.</h2>
           </div>
-          <p class="section-note">Five favourites are enough to start. A TV Time export can fill the library in one pass.</p>
+          <p class="section-note">Five seeds or a history import.</p>
         </div>
 
         <form id="search-form" class="search-form">
-          <label for="media-type">Search in</label>
+          <label for="media-type">Search</label>
           <select id="media-type" name="media_type">
             <option value="all">Movies and TV</option>
             <option value="movie">Movies</option>
@@ -60,54 +60,54 @@
           </select>
           <label class="search-field" for="search-query">
             <span class="sr-only">Title</span>
-            <input id="search-query" name="q" type="search" autocomplete="off" placeholder="Search a title" required />
+            <input id="search-query" name="q" type="search" autocomplete="off" placeholder="Title" required />
           </label>
-          <button class="button button-primary" type="submit">Search catalog</button>
+          <button class="button button-primary" type="submit">Search</button>
         </form>
 
         <div class="import-box">
           <div>
-            <p class="selection-label">Import a TV Time export</p>
-            <p class="section-note">The file stays on this machine. Ambiguous matches wait for your review.</p>
+            <p class="selection-label">TV Time</p>
+            <p class="section-note">Local file. Review first.</p>
           </div>
           <label class="file-field" for="tvtime-file">
             <span id="tvtime-file-label">Choose ZIP or CSV</span>
             <input id="tvtime-file" type="file" accept=".zip,.csv,application/zip,text/csv" />
           </label>
-          <button id="preview-import" class="button button-quiet" type="button">Review import</button>
+          <button id="preview-import" class="button button-quiet" type="button">Review</button>
         </div>
 
         <div id="import-review" class="import-review" hidden>
           <div class="section-heading compact-heading">
             <div>
-              <p class="eyebrow">Review queue</p>
-              <h3>Check the matches before they teach the profile.</h3>
+              <p class="eyebrow">Review</p>
+              <h3>Confirm matches.</h3>
             </div>
-            <button id="commit-import" class="button button-accent" type="button">Add reviewed titles</button>
+            <button id="commit-import" class="button button-accent" type="button">Add</button>
           </div>
           <div id="import-matches" class="import-matches" aria-live="polite"></div>
         </div>
 
         <div id="search-results" class="poster-grid" aria-live="polite">
-          <p class="empty-note">Search for a film or series, then add it to your taste set or library.</p>
+          <p class="empty-note">Search a title.</p>
         </div>
 
         <div class="selection-bar">
           <div>
-            <span class="selection-label">Selected taste set</span>
+            <span class="selection-label">Taste set</span>
             <div id="selected-seeds" class="selected-seeds" aria-live="polite">
               <span class="empty-note">Nothing selected yet.</span>
             </div>
           </div>
-          <button id="start-button" class="button button-accent" type="button" disabled>Teach with comparisons</button>
+          <button id="start-button" class="button button-accent" type="button" disabled>Teach me</button>
         </div>
       </section>
 
       <section id="pair-panel" class="panel pair-panel" aria-labelledby="pair-title" hidden>
         <div class="section-heading pair-heading">
           <div>
-            <p class="eyebrow">Optional preference pass</p>
-            <h2 id="pair-title">Pick the one you would choose.</h2>
+            <p class="eyebrow">Signal</p>
+            <h2 id="pair-title">Choose one.</h2>
           </div>
           <p id="pair-round" class="section-note">Comparison 0 of 10</p>
         </div>
@@ -117,8 +117,8 @@
       <section id="library-panel" class="panel library-panel" aria-labelledby="library-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Your library</p>
-            <h2 id="library-title">A living record of what is in your orbit.</h2>
+            <p class="eyebrow">Library</p>
+            <h2 id="library-title">Keep what matters.</h2>
           </div>
           <button id="pause-learning" class="button button-quiet" type="button">Pause learning</button>
         </div>
@@ -139,48 +139,51 @@
       <section id="results-panel" class="panel results-panel" aria-labelledby="results-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Your next watch</p>
-            <h2 id="results-title">Recommendations that stay accountable to your choices.</h2>
+            <p class="eyebrow">Feed</p>
+            <h2 id="results-title">What fits now?</h2>
           </div>
-          <button id="refresh-recommendations" class="button button-quiet" type="button">Refresh feed</button>
+          <button id="refresh-recommendations" class="button button-quiet" type="button">Refresh</button>
         </div>
-        <form id="context-form" class="context-form">
-          <label>
-            <span>Time</span>
-            <select id="context-time">
-              <option value="">Any length</option>
-              <option value="30">30 minutes</option>
-              <option value="60">About an hour</option>
-              <option value="120">A long watch</option>
-            </select>
-          </label>
-          <label>
-            <span>Mood</span>
-            <input id="context-mood" type="text" maxlength="60" placeholder="Optional" />
-          </label>
-          <label>
-            <span>Company</span>
-            <select id="context-company">
-              <option value="">Any company</option>
-              <option value="solo">Solo</option>
-              <option value="together">Watching together</option>
-            </select>
-          </label>
-          <button class="button button-primary" type="submit">Shape this session</button>
-        </form>
+        <details class="context-drawer">
+          <summary>Shape this session</summary>
+          <form id="context-form" class="context-form">
+            <label>
+              <span>Minutes</span>
+              <select id="context-time">
+                <option value="">Any</option>
+                <option value="30">30</option>
+                <option value="60">60</option>
+                <option value="120">120</option>
+              </select>
+            </label>
+            <label>
+              <span>Mood</span>
+              <input id="context-mood" type="text" maxlength="60" placeholder="Optional" />
+            </label>
+            <label>
+              <span>Company</span>
+              <select id="context-company">
+                <option value="">Any</option>
+                <option value="solo">Solo</option>
+                <option value="together">Together</option>
+              </select>
+            </label>
+            <button class="button button-primary" type="submit">Apply</button>
+          </form>
+        </details>
         <div id="recommendations" class="recommendation-sections" aria-live="polite">
           <p class="empty-note">Add a few titles or import your history to start the feed.</p>
         </div>
-        <button id="load-more" class="button button-quiet load-more" type="button" hidden>Load more recommendations</button>
+        <button id="load-more" class="button button-quiet load-more" type="button" hidden>More</button>
       </section>
 
       <section id="taste-panel" class="panel taste-panel" aria-labelledby="taste-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Taste profile</p>
-            <h2 id="taste-title">See what the local model is learning.</h2>
+            <p class="eyebrow">Taste</p>
+            <h2 id="taste-title">The signal underneath.</h2>
           </div>
-          <p class="section-note">These are signals, not labels. Correct them with the actions in your library.</p>
+          <p class="section-note">Edit with action.</p>
         </div>
         <div class="taste-grid">
           <div>
@@ -205,7 +208,7 @@
     </main>
 
     <footer class="footer">
-      <p>Scene Bridge keeps your library and learning events in the local SQLite database.</p>
+      <p>Local profile.</p>
       <p class="credits">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
     </footer>
 
