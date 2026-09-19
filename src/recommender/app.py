@@ -73,7 +73,7 @@ def _ensure_item_details(database: Database, tmdb: TMDBClient, item: Item) -> It
     try:
         detailed = tmdb.details(item.media_type, item.tmdb_id)
     except TMDBError as error:
-        raise _app_error(error) from error
+        return item
     database.upsert_items([detailed])
     return detailed
 

@@ -55,6 +55,11 @@ class FailingSearchTMDB(FakeTMDB):
         raise TMDBError("tmdb_unavailable", 503, "TMDB could not be reached.")
 
 
+class FailingDetailsTMDB(FakeTMDB):
+    def details(self, media_type: str, tmdb_id: int):
+        raise TMDBError("tmdb_unavailable", 503, "TMDB could not be reached.")
+
+
 def client(tmp_path: Path) -> TestClient:
     return TestClient(create_app(tmp_path / "recommendations.sqlite3", FakeTMDB()))
 
@@ -108,6 +113,25 @@ def test_five_seed_profile_is_valid(tmp_path):
     assert response.status_code == 200
     assert response.json()["minimum_seeds"] == 5
     assert response.json()["maximum_seeds"] == 10
+
+
+def test_cached_seed_metadata_survives_tmdb_detail_failure(tmp_path):
+    from recommender.db import Database
+
+    database_path = tmp_path / "recommendations.sqlite3"
+    database = Database(database_path)
+    database.init()
+    cached_seeds = [make_item("movie", index, f"Cached Movie {index}") for index in range(1, 6)]
+    database.upsert_items(cached_seeds)
+
+    with TestClient(create_app(database_path, FailingDetailsTMDB())) as app_client:
+        response = app_client.post(
+            "/api/profile/seeds",
+            json={"items": [{"media_type": item.media_type, "tmdb_id": item.tmdb_id} for item in cached_seeds]},
+        )
+
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 5
 
 
 def test_pairwise_round_accepts_only_current_winner_and_recommends(tmp_path):
