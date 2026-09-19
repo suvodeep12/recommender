@@ -240,7 +240,9 @@ function renderPair(pair, shouldScroll = true) {
   state.pair = pair;
   elements.pairPanel.hidden = false;
   if (elements.comparisonCount) elements.comparisonCount.textContent = String(pair.round);
-  elements.pairRound.textContent = `Comparison ${pair.round} of ${pair.total_rounds}`;
+  elements.pairRound.textContent = pair.total_rounds === null
+    ? `Comparison ${pair.round} / ongoing`
+    : `Comparison ${pair.round} of ${pair.total_rounds}`;
   clearElement(elements.pairCards);
   elements.pairCards.append(createPairCard(pair.left), createPairCard(pair.right));
   elements.phaseLabel.textContent = "Teach the profile";
@@ -256,7 +258,17 @@ function renderComplete() {
   const note = document.createElement("p");
   note.className = "empty-note pair-complete";
   note.textContent = "The comparison pass is complete. Keep using the library to sharpen the next feed.";
-  elements.pairCards.append(note);
+  elements.pairCards.append(note, actionButton("Teach me another pair", loadAdaptivePair, "button button-quiet"));
+}
+
+async function loadAdaptivePair() {
+  try {
+    const pair = await requestJson("/api/learning/compare");
+    renderPair(pair);
+    setStatus("This pair was chosen because your current model is least certain here.");
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
 }
 
 async function beginComparisons() {

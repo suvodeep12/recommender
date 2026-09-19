@@ -212,6 +212,22 @@ def test_full_ten_comparison_flow_reaches_recommendations(tmp_path):
         assert recommendations.json()["items"]
 
 
+def test_adaptive_comparison_endpoint_continues_after_onboarding(tmp_path):
+    with client(tmp_path) as app_client:
+        app_client.post("/api/profile/seeds", json=seed_payload())
+        for _ in range(10):
+            pair = app_client.get("/api/profile/pair").json()
+            app_client.post(
+                "/api/profile/pair",
+                json={"pair_id": pair["pair_id"], "winner_key": pair["left"]["key"]},
+            )
+
+        adaptive = app_client.get("/api/learning/compare")
+        assert adaptive.status_code == 200
+        assert adaptive.json()["complete"] is False
+        assert adaptive.json()["total_rounds"] is None
+
+
 def test_cached_search_works_without_token(tmp_path):
     from recommender.db import Database
     from recommender.tmdb import TMDBClient

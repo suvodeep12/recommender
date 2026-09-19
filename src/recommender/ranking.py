@@ -295,13 +295,17 @@ def choose_pair(
     negative_keys: set[str],
     window: int = 20,
 ) -> tuple[Item, Item, str] | None:
-    available = [result.item for result in list(ranked_items)[:window] if result.item.key not in negative_keys]
-    for left_index, left in enumerate(available):
-        for right in available[left_index + 1 :]:
-            identifier = pair_key(left, right)
+    ranked = [result for result in list(ranked_items)[:window] if result.item.key not in negative_keys]
+    pairs: list[tuple[float, str, Item, Item]] = []
+    for left_index, left in enumerate(ranked):
+        for right in ranked[left_index + 1 :]:
+            identifier = pair_key(left.item, right.item)
             if identifier not in compared_pair_ids:
-                return left, right, identifier
-    return None
+                pairs.append((abs(left.score - right.score), identifier, left.item, right.item))
+    if not pairs:
+        return None
+    _, identifier, left, right = min(pairs, key=lambda value: (value[0], value[1]))
+    return left, right, identifier
 
 
 def interleave(results: dict[str, list[RankedItem]], limit: int) -> list[RankedItem]:

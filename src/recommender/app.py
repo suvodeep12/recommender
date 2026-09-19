@@ -262,10 +262,10 @@ def _recommendation_sections(
     return {section: values for section, values in visible.items() if values}, list(dominant)
 
 
-def _pair_state(database: Database, tmdb: TMDBClient) -> dict:
+def _pair_state(database: Database, tmdb: TMDBClient, allow_extended: bool = False) -> dict:
     rows = _profile_rows(database)
     count = database.comparison_count()
-    if count >= TOTAL_COMPARISONS:
+    if count >= TOTAL_COMPARISONS and not allow_extended:
         return {"complete": True, "round": count, "total_rounds": TOTAL_COMPARISONS}
 
     seeds = database.seed_items()
@@ -287,7 +287,7 @@ def _pair_state(database: Database, tmdb: TMDBClient) -> dict:
         "right": right.to_dict(),
         "target_media_type": media_type,
         "round": count,
-        "total_rounds": TOTAL_COMPARISONS,
+        "total_rounds": None if allow_extended else TOTAL_COMPARISONS,
     }
 
 
@@ -422,6 +422,26 @@ def create_app(database_path: str | Path | None = None, tmdb_client: TMDBClient 
         database.record_comparison(pair_key(left, right), left, right, winner, loser)
         return _pair_state(database, tmdb)
 
+    @app.get("/api/learning/compare")
+    def get_adaptive_comparison(request: Request) -> dict:
+        database, tmdb = _context(request)
+        return _pair_state(database, tmdb, allow_extended=True)
+
+    @app.post("/api/learning/compare")
+    def choose_adaptive_comparison(payload: PairRequest, request: Request) -> dict:
+        database, tmdb = _context(request)
+        state = _pair_state(database, tmdb, allow_extended=True)
+        if payload.pair_id != state["pair_id"]:
+            raise AppError("stale_pair", 409, "That comparison is no longer current. Load the next pair.")
+        left = database.get_item_by_key(state["left"]["key"])
+        right = database.get_item_by_key(state["right"]["key"])
+        winner = database.get_item_by_key(payload.winner_key)
+        if not left or not right or not winner or winner.key not in {left.key, right.key}:
+            raise AppError("winner_invalid", 422, "Choose one of the two displayed candidates.")
+        loser = right if winner.key == left.key else left
+        database.record_comparison(pair_key(left, right), left, right, winner, loser)
+        return _pair_state(database, tmdb, allow_extended=True)
+
     @app.get("/api/library")
     def library(request: Request, view: Literal["all", "up_next", "watching", "watched", "watchlist", "rewatch", "upcoming"] = "all", limit: int = Query(default=100, ge=1, le=500)) -> dict:
         database, _ = _context(request)
@@ -448,6 +468,17 @@ def create_app(database_path: str | Path | None = None, tmdb_client: TMDBClient 
             events.append(("learning_include" if payload.learning_enabled else "learning_exclude", None, 0.0))
         for event_type, value, signal in events:
             database.record_event(event_type, item=item, value=value, signal=signal, context=payload.context)
+        return {"item": next((value for value in database.library_items("all", 5000) if value["key"] == item.key), item.to_dict())}
+
+    @app.patch("/api/library/items/{media_type}/{tmdb_id}/learning")
+    def update_item_learning(media_type: Literal["movie", "tv"], tmdb_id: int, payload: LearningPauseRequest, request: Request) -> dict:
+        database, tmdb = _context(request)
+        item = _ensure_item(database, tmdb, MediaItemInput(media_type=media_type, tmdb_id=tmdb_id))
+        database.record_event(
+            "learning_include" if not payload.paused else "learning_exclude",
+            item=item,
+            signal=0,
+        )
         return {"item": next((value for value in database.library_items("all", 5000) if value["key"] == item.key), item.to_dict())}
 
     @app.get("/api/library/episodes/{tv_id}")
